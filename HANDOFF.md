@@ -6,11 +6,66 @@ how to prove changes in the cc-ios macOS harness. User-facing docs live in [`REA
 
 ## Status
 
-**Implemented.** Lock-on controller aim assist + two options in the in-game Assists menu. Verified in
-the cc-ios macOS WebKit harness: boots with `jsErrors=0`, options register and persist, labels
-resolve, and a live engine test confirms the snap re-centers aim onto an enemy with the throw
-distance preserved and **zero** spread penalty. Pure aiming math has unit tests
-(`window.ccAimAssist`).
+**Implemented and on-device, but the feel needs rework (TABLED — see next section).** Lock-on
+controller aim assist + two options in the in-game Assists menu. Verified in the cc-ios macOS WebKit
+harness: boots with `jsErrors=0`, options register and persist, labels resolve, and a live engine
+test confirms the snap re-centers aim onto an enemy with the throw distance preserved and **zero**
+spread penalty. Pure aiming math has unit tests (`window.ccAimAssist`). Deployed to the iPhone via the
+cc-ios mods overlay and play-tested.
+
+**Real-play verdict:** the current hard snap is too strong/dramatic — only the lowest "Lock Range"
+settings feel acceptable. The desired behavior is a *subtle tracking nudge* (help me steer toward an
+enemy I'm already aiming at), not a lock-on. The next session should soften the core from a snap to a
+gentle, capped pull. Details below.
+
+## Tuning feedback & next steps (TABLED)
+
+The original "lock the center of the spread onto an enemy" framing overshot. What actually feels good
+in play is a **gentle nudge that helps track an enemy you're already focusing on** — assistance, not
+takeover. Concrete direction for the next session:
+
+1. **Snap → gentle pull.** The hard snap is just `CFG.pull = 1.0`. Lower it (≈ `0.1–0.2`) so the aim
+   rotates only a *fraction* of the way to the target each frame, and **re-introduce a per-frame
+   degree cap** (the original scaffold's `maxPullDeg`, ≈ `1–3°/frame`) so a far-off target is eased
+   toward, never yanked. `nudgeAngle(aim, target, pull)` already supports fractional pull; add the cap
+   back around it.
+2. **Rethink what the slider controls.** For a tracking nudge, *strength* (how hard it pulls) is the
+   useful knob, not cone size. Simplest: rename the `ARRAY_SLIDER` to **"Aim Assist Strength"** and map
+   it to a gentle pull range (e.g. `0 → off`, `1 → pull≈0.2 + maxPull≈3°/frame`); keep the engagement
+   cone modest and fixed-ish (≈ `12–18°` half-angle) so it only helps for enemies you're basically
+   already pointing at. (Keeping a second cone slider is an option but cuts against "keep it simple".)
+3. **Keep the spread neutralization** (`_lastDir = snapped offset`). A gentle nudge is small per-frame
+   so it usually won't trip the spread penalty anyway, but neutralizing stays correct and keeps spread
+   pristine — leave it in.
+4. **Consider a small center deadzone** so the assist doesn't fight fine manual corrections when
+   you're already dead-on the target.
+5. Re-tune defaults after the above (suggested start: cone ≈ 15°, pull ≈ 0.12, maxPull ≈ 2°/frame,
+   slider → strength). Re-validate in the harness (unit math + live snap test) and re-deploy.
+
+Because the snap already preserves aim distance and only changes angle, this is a localized change to
+`applyAssist`/`CFG` — the hook points, menu wiring, and validation harness all stay as-is.
+
+## Deploying to the device (caution — we lost a save here once)
+
+Installing the mod onto the phone is a `devicectl` copy into the cc-ios app's writable overlay
+(`appDataContainer` → `Documents/mods/assets/mods/cc-aim-assist/`); the scheme handler auto-merges it
+into `mods.json` on launch. No app rebuild needed. **But:**
+
+- **A cc-ios app *reinstall* wipes the whole app container** — `cc.save`, `cc-sync.json`, and installed
+  mods all vanish together. If you're also doing cc-ios `make device`/reinstall work in parallel, it
+  *will* clear what you pushed. Re-push after any reinstall.
+- **The Tailscale save-sync only auto-restores if `Documents/cc-sync.json` exists.** A reinstall
+  deletes it, so `SaveSyncClient` silently disables itself and the launch-time pull never runs — the
+  save is *not* auto-recovered on the next boot. After any reinstall, re-push `cc-sync.json` (the Mac's
+  copy lives at `~/.cc-ios/cc-sync.json`) **before** launching, or the phone boots a fresh save.
+- The desktop save (`~/Library/Application Support/CrossCode/Default/cc.save`) is the source of truth
+  and is Steam-Cloud backed; the phone never overwrote it during the incident because push needs that
+  same `cc-sync.json`. Still: back it up before device work. Durable backups from the incident are in
+  `~/.cc-ios/save-rescue-*`.
+- These are **cc-ios** gaps (re-push `cc-sync.json` after install; `save-server.py do_PUT` doesn't
+  actually enforce newest-wins) — fix them in the cc-ios repo, not here.
+
+
 
 ## Key decision: a CCLoader `prestart` mod, not native changes
 
@@ -47,7 +102,12 @@ Throw aiming flows through the player's crosshair entity and its controller:
 
 There is **no pre-existing gamepad auto-aim** in CrossCode to coexist with.
 
-## How the lock is implemented
+## How the lock is implemented (current behavior — to be softened; see "Tuning feedback")
+
+> The current build does a **hard snap** (`CFG.pull = 1.0`). Play-testing says that's too dramatic;
+> the next session should turn this into a gentle, per-frame-capped pull (see the tabled tuning
+> section above). The hook points below stay the same — only the pull strength/cap and the slider
+> semantics change.
 
 Inject `sc.PlayerCrossHairController.updatePos`. After `this.parent(crosshair)` (so the game has
 already positioned the crosshair from the stick):
