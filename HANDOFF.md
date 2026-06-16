@@ -6,44 +6,58 @@ how to prove changes in the cc-ios macOS harness. User-facing docs live in [`REA
 
 ## Status
 
-**Implemented and on-device, but the feel needs rework (TABLED — see next section).** Lock-on
-controller aim assist + two options in the in-game Assists menu. Verified in the cc-ios macOS WebKit
-harness: boots with `jsErrors=0`, options register and persist, labels resolve, and a live engine
-test confirms the snap re-centers aim onto an enemy with the throw distance preserved and **zero**
-spread penalty. Pure aiming math has unit tests (`window.ccAimAssist`). Deployed to the iPhone via the
-cc-ios mods overlay and play-tested.
+**Reworked into selectable, gentle tracking assists (the snap is now opt-in).** Controller aim assist
+with **six single-select modes** — Off / Friction / Track (default) / Hybrid / Sticky / Lock — plus a
+**Lead Targets** prediction toggle, exposed in the in-game Assists menu as a `BUTTON_GROUP` (mode) + five
+`ARRAY_SLIDER`s (Strength, Range, Engage Delay, Max Distance, Deadzone) + a `CHECKBOX` (Lead). Everything
+is **live-tunable on-device** (no rebuild); only one mode runs at a time. Verified **fully headlessly**:
+pure math + slider→tunable mappings (`test/aim-math.test.js`) and the real `applyAssist` driven
+frame-by-frame for every mode (`test/aim-sim.test.js`) — `npm test` runs both (71 cases), no browser.
+Targets **only alive enemy combatants** and never feeds the bullet-spread growth path.
 
-**Real-play verdict:** the current hard snap is too strong/dramatic — only the lowest "Lock Range"
-settings feel acceptable. The desired behavior is a *subtle tracking nudge* (help me steer toward an
-enemy I'm already aiming at), not a lock-on. The next session should soften the core from a snap to a
-gentle, capped pull. Details below.
+**Why the rework:** the original build was a hard snap (`CFG.pull = 1.0`) on a wide cone with no
+engagement delay — real-play verdict was "too strong/dramatic; only the lowest range felt OK," and it
+felt like it grabbed the "wrong" target when sweeping the stick. The fix follows the industry-standard
+stack for 2D tracking assists (angle-based selection + hysteresis you already had, plus capped angular
+gravity, a dwell delay, and a center deadzone). The old snap survives as the opt-in **Lock** mode.
 
-## Tuning feedback & next steps (TABLED)
+## Modes & tuning (implemented)
 
-The original "lock the center of the spread onto an enemy" framing overshot. What actually feels good
-in play is a **gentle nudge that helps track an enemy you're already focusing on** — assistance, not
-takeover. Concrete direction for the next session:
+The Assists menu exposes a **mode** (`BUTTON_GROUP`) plus five sliders + a checkbox; each 0–1 slider maps
+onto a range set by constants in `CFG` at the top of `prestart.js` (pure mapping fns: `coneRadFor`,
+`distPxFor`, `dwellFramesFor`, `deadzoneRadFor`, `pullFor`, `capRadFor`, `frictionFor`, `stickyFollowFor`
+— all unit-tested). Per-mode behavior in `applyAssist`:
 
-1. **Snap → gentle pull.** The hard snap is just `CFG.pull = 1.0`. Lower it (≈ `0.1–0.2`) so the aim
-   rotates only a *fraction* of the way to the target each frame, and **re-introduce a per-frame
-   degree cap** (the original scaffold's `maxPullDeg`, ≈ `1–3°/frame`) so a far-off target is eased
-   toward, never yanked. `nudgeAngle(aim, target, pull)` already supports fractional pull; add the cap
-   back around it.
-2. **Rethink what the slider controls.** For a tracking nudge, *strength* (how hard it pulls) is the
-   useful knob, not cone size. Simplest: rename the `ARRAY_SLIDER` to **"Aim Assist Strength"** and map
-   it to a gentle pull range (e.g. `0 → off`, `1 → pull≈0.2 + maxPull≈3°/frame`); keep the engagement
-   cone modest and fixed-ish (≈ `12–18°` half-angle) so it only helps for enemies you're basically
-   already pointing at. (Keeping a second cone slider is an option but cuts against "keep it simple".)
-3. **Keep the spread neutralization** (`_lastDir = snapped offset`). A gentle nudge is small per-frame
-   so it usually won't trip the spread penalty anyway, but neutralizing stays correct and keeps spread
-   pristine — leave it in.
-4. **Consider a small center deadzone** so the assist doesn't fight fine manual corrections when
-   you're already dead-on the target.
-5. Re-tune defaults after the above (suggested start: cone ≈ 15°, pull ≈ 0.12, maxPull ≈ 2°/frame,
-   slider → strength). Re-validate in the harness (unit math + live snap test) and re-deploy.
+1. **Friction** — *aim slowdown*. Near a target, keep only `1 - f` of the stick's per-frame angular
+   motion (`frictionStep`, `f = frictionFor(strength) × blend`). Never moves your aim for you.
+2. **Track (default)** — *capped angular gravity*. Ease aim toward the target by `pullFor(strength)`
+   (fraction/frame), clamped to `capRadFor(strength)` (deg/frame) so a far target is eased toward, never
+   yanked (`trackStep`). Gated by a **dwell ramp** (`dwellFramesFor(delay)`; `blend` 0→1) that **resets
+   when you acquire a new enemy**, so sweeping the stick through a crowd never grabs intermediate
+   targets. A center **Deadzone** (`deadzoneRadFor`) makes it hands-off when you're already dead-on.
+3. **Hybrid** — Friction **then** Track: `frictionStep` (×`hybridFrictionScale`) damps the stick, then
+   `trackStep` pulls toward the target. Halo-style two-layer; honors the deadzone like Track.
+4. **Sticky** — *active follow*. `stickyStep(targetAngle, aim, stickyFollowFor(strength), blend)` returns
+   `base + offset*(1 - follow*blend)` (`offset = aim - base`): your aim is partly glued to the target so
+   it auto-follows the enemy's movement while you still steer (compressed offset). Strongest non-snap aid.
+5. **Lock** — *hard snap* (`lockPull = 1.0`, eased in by the dwell `blend` so even Lock can be delayed;
+   delay 0 = instant legacy snap).
 
-Because the snap already preserves aim distance and only changes angle, this is a localized change to
-`applyAssist`/`CFG` — the hook points, menu wiring, and validation harness all stay as-is.
+**Knobs (all live-tunable, no rebuild):** Strength (intensity — pull for Track/Hybrid, slow for Friction,
+glue for Sticky), Range (engagement cone `coneMinDeg..coneMaxDeg`), Engage Delay (dwell `0..dwellMaxMs`),
+Max Distance (`distMinPx..distMaxPx`), Deadzone (`0..deadzoneMaxDeg`, Track/Hybrid), and a **Lead Targets**
+checkbox (velocity prediction via `leadAngle(...)`, applied to all aiming modes — velocity from `e.coll.vel`).
+
+Shared acquisition (`selectTarget(tx,ty,aim,coneRad,rangePx,prevIdx,centers,count)`): nearest **enemy**
+by aim *angle* within the Range cone, a distance tiebreak within `selectEpsDeg` (fixes "locks the wrong
+enemy"), a `releaseFactor` (1.6×) release cone for sticky hysteresis, and the `rangePx` (Max Distance)
+cutoff. Off mode disables; Strength 0% makes the pull/slow/glue modes no-ops (Lock still snaps).
+
+Defaults reproduce the validated Track feel: Range 0.4 (~14.4°), Delay 0.5 (~160 ms), Distance 0.5
+(600 px), Deadzone 0.4 (~1.6°), Strength 0.5, Lead off. The mode list is **capped at 6** — the menu
+button row is 256px wide and splits `floor(256/N)`, so 7+ buttons clip their labels (see below). A
+post-fire bullet-magnetism mode was considered and **declined**: it would have to bend the thrown ball,
+which also carries CrossCode's *puzzle* throws — too risky to the non-combat game.
 
 ## Deploying to the device (caution — we lost a save here once)
 
@@ -102,74 +116,94 @@ Throw aiming flows through the player's crosshair entity and its controller:
 
 There is **no pre-existing gamepad auto-aim** in CrossCode to coexist with.
 
-## How the lock is implemented (current behavior — to be softened; see "Tuning feedback")
-
-> The current build does a **hard snap** (`CFG.pull = 1.0`). Play-testing says that's too dramatic;
-> the next session should turn this into a gentle, per-frame-capped pull (see the tabled tuning
-> section above). The hook points below stay the same — only the pull strength/cap and the slider
-> semantics change.
+## How the assist is implemented
 
 Inject `sc.PlayerCrossHairController.updatePos`. After `this.parent(crosshair)` (so the game has
-already positioned the crosshair from the stick):
+already positioned the crosshair from the stick), `applyAssist`:
 
-1. Gate: enabled option on, `controller.gamepadMode`, `crosshair.active`, slider cone > 0.
-2. Find the alive enemy whose **angle** from the thrower is nearest the current aim, within the
-   slider-controlled cone (with a `*1.5` release cone for hysteresis on the held target).
-3. **Snap:** rotate `coll.pos` to point exactly at that enemy while **preserving `|offset|`** (throw
+1. Gate: mode ≠ Off, `controller.gamepadMode`, `crosshair.active`, strength > 0 (→ `modeConeRad` > 0).
+2. Find the alive **enemy** whose **angle** from the thrower is nearest the current aim, within the
+   mode's cone (closer enemy wins a near-tie; a `releaseFactor` release cone gives the held target
+   sticky hysteresis). Track dwell per acquired enemy.
+3. Compute the new aim angle per mode — Track: `trackStep` (capped fractional pull × dwell blend, with
+   a center deadzone); Friction: `frictionStep` (damp the stick's per-frame motion); Lock: full snap
+   (`nudgeAngle(..., 1)`). Then rotate `coll.pos` to that angle while **preserving `|offset|`** (throw
    range/speed unchanged — only the angle changes).
-4. **Neutralize the spread penalty:** set `crosshair._lastDir` to the snapped offset, so step (2) of
-   `deferredUpdate` sees `b ≈ 0` and never grows `rangeCurrent` from the snap. The normal per-frame
-   decay still runs, so the spread still tightens to a line — now centered on the enemy.
+4. **Neutralize the spread penalty:** set `crosshair._lastDir` to the new offset, so step (2) of
+   `deferredUpdate` sees `b ≈ 0` and never grows `rangeCurrent` from the assist. The normal per-frame
+   decay still runs, so the spread still tightens to a line — now better aimed. (Skipped when the
+   assist makes no effective change, e.g. Track's deadzone or a still-ramping dwell.)
 
-Why this satisfies "don't affect the spread": the only thing the snap changes is the aim *angle*; it
-never feeds the spread-growth path, and it preserves the offset magnitude the throw uses. Tunables
-(`maxConeDeg`, `rangePx`, `releaseFactor`, `pull`) live in `CFG` at the top of `prestart.js`.
+Why this satisfies "don't affect the spread": the only thing the assist changes is the aim *angle*; it
+never feeds the spread-growth path, and it preserves the offset magnitude the throw uses. Tunables live
+in `CFG` at the top of `prestart.js` (see "Modes & tuning" above).
 
 ## Assists-menu integration
 
-- Register two entries in `sc.OPTIONS_DEFINITION` at `prestart` (so the option model picks up their
-  `init` defaults and persists them):
-  - `aim-assist-enabled` — `CHECKBOX`, `init: true`, `cat: sc.OPTION_CATEGORY.ASSISTS`, `header:
-    "aimAssist"`, `hasDivider: true` (the header text is what creates the new "Aim Assist" section).
-  - `aim-assist-strength` — `ARRAY_SLIDER`, `data: [0, 1]`, `init: 0.5`, `cat: ASSISTS`, `fill: true`
-    (a continuous 0–100% slider; `strength → cone half-angle`).
-- **Labels:** inject `ig.Lang.get` to return our strings for `sc.gui.options.headers.aimAssist` and
-  `sc.gui.options.aim-assist-*.name` / `.description`, delegating every other key to `this.parent`.
-- **Read live:** `sc.options.get("aim-assist-enabled")` / `get("aim-assist-strength")`.
+- Register seven entries in `sc.OPTIONS_DEFINITION` at `prestart` (so the option model picks up their
+  `init` defaults and persists them), all `cat: sc.OPTION_CATEGORY.ASSISTS`:
+  - `aim-assist-mode` — `BUTTON_GROUP`, `data: AIM_MODE` (`{OFF:0, FRICTION:2, TRACK:1, HYBRID:3,
+    STICKY:4, LOCK:5}`), `init: AIM_MODE.TRACK`, `header: "aimAssist"`, `hasDivider: true` (the header
+    text creates the "Aim Assist" section). `sc.options.get` returns the **value** (0–5). The label array
+    is indexed by VALUE; the on-screen button ORDER follows AIM_MODE **key-insertion order** (engine does
+    `for (k in data) push(data[k])`), so values stay stable (TRACK===1) while display reads subtle→strong.
+    **Cap at 6 options** — the button group splits the 256px control area (`g = floor(256/N)`); 7+ clip.
+  - `aim-assist-strength` / `-range` / `-delay` / `-distance` / `-deadzone` — `ARRAY_SLIDER`,
+    `data: [0, 1]`, `fill: true`, inits `0.5 / 0.4 / 0.5 / 0.5 / 0.4`. Each 0–1 value is mapped to a real
+    range by a `*For()` helper in `prestart.js`.
+  - `aim-assist-lead` — `CHECKBOX`, `init: false`.
+- **Labels:** inject `ig.Lang.get` to return our strings for `sc.gui.options.headers.aimAssist`,
+  `sc.gui.options.aim-assist-mode.{name,description}`, and `...aim-assist-mode.group` (an **array** in
+  value order `["Off","Track","Friction","Hybrid","Sticky","Lock"]` — the engine does
+  `ig.lang.get("sc.gui.options."+name+".group")[value]`), plus `.name`/`.description` for every slider
+  and the checkbox, delegating every other key to `this.parent`.
+- **Read live:** `sc.options.get("aim-assist-mode")` (0–5), the five sliders (0–1), and
+  `get("aim-assist-lead")` (bool).
 
 The shapes mirror the game's own assists options (`assist-damage`, `assist-puzzle-speed`, …), and the
 option model builds menu rows by iterating `OPTIONS_DEFINITION` filtered by `cat` — so our entries
 render as a normal section.
 
-## Verifying in the cc-ios macOS harness (local, no device)
+## Verifying (headless Node — preferred) + optional WKWebView harness
 
-From a cc-ios checkout with assets synced (`tools/sync-assets.sh`) and CCLoader + this mod installed
-(`tools/setup-ccloader.sh [--add-mod …]`):
+**Primary, fully headless (no game, no browser, no window):** `applyAssist` and all pure helpers are
+exported on `window.ccAimAssist`, so two Node suites cover everything `npm test` runs both:
+
+```bash
+node test/aim-math.test.js   # pure math + every slider->tunable mapping (vm + stubbed window/sc/ig)
+node test/aim-sim.test.js    # loads prestart.js in a vm, stubs sc/ig, drives the REAL applyAssist
+                             # frame-by-frame for every mode: dispatch, selection, dwell, deadzone,
+                             # Lead, range/distance gating, enemy-only, _lastDir spread-neutralization
+```
+
+`aim-sim.test.js` models two frame feeds: **hold/sweep** (reset `coll.pos` to the commanded angle each
+frame, then call `applyAssist`) for Friction/Sticky/Lock/Lead, and **accumulate** (let the assist output
+persist) to show Track/Hybrid converge and settle. **Gotcha:** in a synthetic sim the aim only moves via
+the assist, so place the test enemy/offset *inside* the engagement cone (or widen Range) — otherwise
+Track/Hybrid/Sticky correctly refuse to engage (the player must aim roughly at the enemy first).
+
+**Optional in-engine smoke test (boots a WKWebView — opens a window; don't run on a machine where that's
+unwanted):** from a cc-ios checkout with assets synced + this mod installed:
 
 ```bash
 swift build
 ./.build/debug/webkit-harness --root app/Resources/game --entry ccloader/index.html \
   --prefer-m4a --mods-overlay /tmp/cc-overlay --timeout 120 \
-  --eval '(function(){return JSON.stringify({
-     enabled: sc.options.get("aim-assist-enabled"),
-     strength: sc.options.get("aim-assist-strength"),
-     header: ig.lang.get("sc.gui.options.headers.aimAssist"),
-     ctrl: typeof sc.PlayerCrossHairController.prototype.updatePos
-  });})()'
+  --eval '(function(){var k=["mode","strength","range","delay","distance","deadzone","lead"];
+     return JSON.stringify({
+       opts: k.map(function(s){return sc.OPTIONS_DEFINITION["aim-assist-"+s]!=null?1:0;}).join(""),
+       group: ig.lang.get("sc.gui.options.aim-assist-mode.group"),
+       ctrl: typeof sc.PlayerCrossHairController.prototype.updatePos
+   });})()'
 ```
 
 Notes:
-- `--eval` runs at the **title screen** (`ig.game.playerEntity` is null there), and `--poke` is
-  ignored when `--eval` is set. Static class probes and synthetic tests work fine at the title:
-  construct a real `new sc.PlayerCrossHairController()`, a stub crosshair (`coll.pos`, `_lastDir`,
-  `_getThrowerPos`), and temporarily set `ig.game.entities` to a fake enemy to exercise the injected
-  `updatePos`. Use synchronous code only (returning a Promise isn't supported).
-- The pure math (`window.ccAimAssist.selectTarget` / `coneRadFor` / `nudgeAngle`) can be unit-tested
-  in plain Node by loading `prestart.js` with stubbed `window`/`sc`/`ig` globals.
+- `--eval` runs at the **title screen** (`ig.game.playerEntity` is null there). Build synthetic tests
+  with `new sc.PlayerCrossHairController()` + a stub crosshair + fake `ig.game.entities` — same as
+  `aim-sim.test.js`, just in-engine.
 - Success line: `bootstrap=true platform=Browser jsErrors=0`.
-- Headless caveat: the title→options menu *visual* transition doesn't always paint in the harness,
-  but the option model still selects the Assists tab without error — verify the menu by data
-  (`OPTIONS_DEFINITION` ordering + `ig.lang.get`) rather than a screenshot.
+- Headless caveat: the title→options menu *visual* transition doesn't always paint in the harness, so
+  verify the menu by data (`OPTIONS_DEFINITION` + `ig.lang.get`) rather than a screenshot.
 
 ## Packaging
 
