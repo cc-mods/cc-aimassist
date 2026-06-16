@@ -1,6 +1,6 @@
 {
 	"name": "cc-aimassist",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"ccmodHumanName": "CrossCode Aim Assist",
 	"description": "Controller aim assist — locks the center of your throw aim onto a nearby enemy, without affecting bullet spread. Works on desktop and the cc-ios iOS wrapper.",
 	"prestart": "prestart.js",

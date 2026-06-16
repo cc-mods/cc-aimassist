@@ -1,13 +1,20 @@
 {
 	"id": "cc-aimassist",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"title": "CrossCode Aim Assist",
 	"description": "Controller aim assist — locks the center of your throw aim onto a nearby enemy when you aim close to it, without affecting bullet spread. Toggle and tune it in the in-game Assists menu. Works on desktop and the cc-ios iOS wrapper.",
 	"repository": "https://github.com/cc-mods/cc-aimassist",
 	"homepage": "https://github.com/cc-mods/cc-aimassist",
-	"authors": ["Yoyokrazy"],
-	"tags": ["QoL", "accessibility"],
-	"icons": { "24": "icon.png" },
+	"authors": [
+		"Yoyokrazy"
+	],
+	"tags": [
+		"QoL",
+		"accessibility"
+	],
+	"icons": {
+		"24": "icon.png"
+	},
 	"prestart": "prestart.js",
 	"dependencies": {
 		"crosscode": "^1.1.0 || 1.0.2"
