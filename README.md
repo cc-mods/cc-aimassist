@@ -1,8 +1,8 @@
-# cc-aim-assist
+# cc-aimassist
 
 Very gentle **controller aim assist** for **[CrossCode](https://store.steampowered.com/app/368340/CrossCode/)**,
 delivered as a **CCLoader mod** so it works on desktop *and* on iPhone/iPad via
-**[cc-ios](https://github.com/Yoyokrazy/cc-ios)**.
+**[cc-ios](https://github.com/cc-mods/cc-ios)**.
 
 > ### ⚠️ You must own CrossCode. This repo contains **no game code or assets** — only a small mod.
 
@@ -40,17 +40,21 @@ nothing to 404 — the safest kind of mod for the browser-mode loader cc-ios use
 
 ## Install
 
+> **One-click:** part of the [**cc-mods**](https://github.com/cc-mods) suite. On the
+> [**cc-ios**](https://github.com/cc-mods/cc-ios) iPhone wrapper it appears in the in-game **Mods**
+> tab automatically. On desktop, add the `@cc-mods/CCModDB/stable` repository in CCModManager →
+> Settings → Repositories, or grab the `.ccmod` from
+> [Releases](https://github.com/cc-mods/cc-aimassist/releases).
+
 ### Desktop CrossCode (with CCLoader)
 
 1. Install **[CCLoader 2.x](https://github.com/CCDirectLink/CCLoader)** if you haven't.
-2. Build the mod package and add it to your CrossCode mods folder:
-   ```bash
-   tools/build-ccmod.sh            # writes dist/cc-aim-assist-<version>.ccmod
-   ```
+2. Grab the `.ccmod` from [Releases](https://github.com/cc-mods/cc-aimassist/releases) (or build it
+   locally with `tools/build-ccmod.sh`, which writes `dist/cc-aimassist-<version>.ccmod`).
    Copy that `.ccmod` into `CrossCode/assets/mods/` (CCLoader unpacks it), or install it from the
-   in-game **CCModManager**. You can also just copy the folder `mods/cc-aim-assist/` into
-   `CrossCode/assets/mods/`.
-3. Launch CrossCode. Confirm `[cc-aim-assist] loaded` in the dev console.
+   in-game **CCModManager**. You can also just copy this repo's mod files into
+   `CrossCode/assets/mods/cc-aimassist/`.
+3. Launch CrossCode. Confirm `[cc-aimassist] loaded` in the dev console.
 
 ### iPhone / iPad (cc-ios)
 
@@ -58,24 +62,25 @@ cc-ios already loads CCLoader mods (in-game **Mods** tab + on-device install). F
 checkout (after `make setup`):
 
 ```bash
-tools/setup-ccloader.sh --add-mod /path/to/cc-aim-assist/mods/cc-aim-assist
+tools/setup-ccloader.sh --add-mod /path/to/cc-aimassist
 ```
 
 …or install the built `.ccmod` from the in-game **Mods** tab. Then boot and check the JS console for
-`[cc-aim-assist] loaded`.
+`[cc-aimassist] loaded`.
 
 ## Repo layout
 
 ```
-cc-aim-assist/
+cc-aimassist/
+  ccmod.json               CCLoader manifest (prestart stage, no assets)
+  package.json             legacy CCLoader manifest mirror
+  prestart.js              the hook (lock-on aim assist + Assists-menu options)
+  icon.png                 24x24 mod icon (original art)
   README.md
-  HANDOFF.md                 engine internals this mod hooks + dev/harness notes
-  LICENSE                    MIT (this mod's own code only)
-  tools/build-ccmod.sh       package mods/cc-aim-assist into a distributable .ccmod
-  mods/cc-aim-assist/
-    ccmod.json               CCLoader manifest (prestart stage, no assets)
-    package.json             legacy CCLoader manifest mirror
-    prestart.js              the hook (lock-on aim assist + Assists-menu options)
+  HANDOFF.md               engine internals this mod hooks + dev/harness notes
+  LICENSE                  MIT (this mod's own code only)
+  tools/build-ccmod.sh     package the mod into a distributable .ccmod
+  .github/workflows/release.yml   auto-release on push to main
 ```
 
 ## Development

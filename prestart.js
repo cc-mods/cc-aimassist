@@ -1,4 +1,4 @@
-/* cc-aim-assist — controller aim assist for CrossCode (desktop + cc-ios).
+/* cc-aimassist — controller aim assist for CrossCode (desktop + cc-ios).
  *
  * WHAT IT DOES
  *   When you aim with an analog stick and point CLOSE ENOUGH to an enemy, the center of your throw
@@ -168,7 +168,7 @@
 	// ---- Wire-up (prestart: sc.* is defined; addons/options init later during boot) -----
 	try {
 		if (typeof sc === "undefined") {
-			console.warn("[cc-aim-assist] sc.* unavailable; skipping (wrong load stage?)");
+			console.warn("[cc-aimassist] sc.* unavailable; skipping (wrong load stage?)");
 			return;
 		}
 
@@ -188,7 +188,7 @@
 				fill: true
 			};
 		} else {
-			console.warn("[cc-aim-assist] OPTIONS_DEFINITION/OPTION_CATEGORY missing; menu entries skipped");
+			console.warn("[cc-aimassist] OPTIONS_DEFINITION/OPTION_CATEGORY missing; menu entries skipped");
 		}
 
 		// 2) Provide labels for our entries (delegate every other key to the game).
@@ -207,11 +207,11 @@
 				updatePos: function (crosshair) {
 					this.parent(crosshair);
 					try { applyAssist(this, crosshair); }
-					catch (e) { console.error("[cc-aim-assist] non-fatal:", e); }
+					catch (e) { console.error("[cc-aimassist] non-fatal:", e); }
 				}
 			});
 		} else {
-			console.warn("[cc-aim-assist] sc.PlayerCrossHairController missing; aim hook skipped");
+			console.warn("[cc-aimassist] sc.PlayerCrossHairController missing; aim hook skipped");
 		}
 
 		// Debug / live-tuning / harness self-test surface.
@@ -221,8 +221,8 @@
 			selectTarget: selectTarget
 		};
 
-		console.log("[cc-aim-assist] loaded (lock-on aim assist + Assists menu options)");
+		console.log("[cc-aimassist] loaded (lock-on aim assist + Assists menu options)");
 	} catch (e) {
-		console.error("[cc-aim-assist] init failed (non-fatal):", e);
+		console.error("[cc-aimassist] init failed (non-fatal):", e);
 	}
 })();

@@ -1,0 +1,114 @@
+# cc-aimassist — release automation.
+#
+# WHAT THIS DOES
+#   - On every push to `main`: bumps the PATCH (z) of x.y.z in ccmod.json (and package.json),
+#     tags vX.Y.Z, builds the .ccmod package, and publishes a GitHub Release.
+#   - Manual dispatch ("Run workflow") accepts a `bump_type` of `minor` or `major`.
+#
+# LOOP PROTECTION
+#   The bump commit is authored by `github-actions[bot]`. Pushes made with the default
+#   GITHUB_TOKEN do NOT trigger other workflows, so the bot's own commit will not re-trigger
+#   this workflow. The `if:` guard below is a belt-and-braces second line of defence.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: true
+        default: 'minor'
+        type: choice
+        options:
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine bump type
+        id: bump
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "type=${{ github.event.inputs.bump_type }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=patch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump version in ccmod.json + package.json
+        id: version
+        run: |
+          set -euo pipefail
+          CURRENT=$(node -p "require('./ccmod.json').version")
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          case "${{ steps.bump.outputs.type }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+            *) echo "unknown bump type: ${{ steps.bump.outputs.type }}" >&2; exit 1 ;;
+          esac
+          NEW="${MAJOR}.${MINOR}.${PATCH}"
+          echo "Bumping ${CURRENT} -> ${NEW} (${{ steps.bump.outputs.type }})"
+          node -e "const fs=require('fs');const p='./ccmod.json';const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version='${NEW}';fs.writeFileSync(p, JSON.stringify(j, null, '\t') + '\n');"
+          node -e "const fs=require('fs');const p='./package.json';if(fs.existsSync(p)){const j=JSON.parse(fs.readFileSync(p,'utf8'));j.version='${NEW}';fs.writeFileSync(p, JSON.stringify(j, null, '\t') + '\n');}"
+          echo "version=${NEW}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit, tag, push
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ccmod.json package.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit; aborting."
+            exit 1
+          fi
+          git commit -m "chore: release v${NEW_VERSION}"
+          git tag -a "v${NEW_VERSION}" -m "v${NEW_VERSION}"
+          git push origin "HEAD:${{ github.ref_name }}"
+          git push origin "v${NEW_VERSION}"
+
+      - name: Build .ccmod package
+        id: pkg
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          STAGE="$(mktemp -d)"
+          # Ship only the runtime + docs. Exclude dev-only files (tools/, .github/, HANDOFF.md, …).
+          cp ccmod.json package.json prestart.js icon.png README.md LICENSE "$STAGE/"
+          ASSET="cc-aimassist-${NEW_VERSION}.ccmod"
+          ( cd "$STAGE" && zip -r "${GITHUB_WORKSPACE}/${ASSET}" . )
+          ls -la "${GITHUB_WORKSPACE}/${ASSET}"
+          echo "asset=${ASSET}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ steps.version.outputs.version }}
+          ASSET: ${{ steps.pkg.outputs.asset }}
+        run: |
+          set -euo pipefail
+          gh release create "v${NEW_VERSION}" "${ASSET}" \
+            --title "v${NEW_VERSION}" \
+            --generate-notes

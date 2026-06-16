@@ -1,4 +1,4 @@
-# cc-aim-assist — engine internals & dev notes
+# cc-aimassist — engine internals & dev notes
 
 Durable reference for working on this mod: the CrossCode internals it hooks (verified against the
 real `game.compiled.js` v1.4.2 and `ultimate-crosscode-typedefs`), how the lock is implemented, and
@@ -48,7 +48,7 @@ Because the snap already preserves aim distance and only changes angle, this is 
 ## Deploying to the device (caution — we lost a save here once)
 
 Installing the mod onto the phone is a `devicectl` copy into the cc-ios app's writable overlay
-(`appDataContainer` → `Documents/mods/assets/mods/cc-aim-assist/`); the scheme handler auto-merges it
+(`appDataContainer` → `Documents/mods/assets/mods/cc-aimassist/`); the scheme handler auto-merges it
 into `mods.json` on launch. No app rebuild needed. **But:**
 
 - **A cc-ios app *reinstall* wipes the whole app container** — `cc.save`, `cc-sync.json`, and installed
@@ -173,7 +173,7 @@ Notes:
 
 ## Packaging
 
-`tools/build-ccmod.sh` zips `mods/cc-aim-assist/` into `dist/<id>-<version>.ccmod` (manifest at the
+`tools/build-ccmod.sh` stages the root mod files into `dist/<id>-<version>.ccmod` (manifest at the
 archive root; `prestart.js` syntax-checked first). The same `.ccmod` installs on desktop CCLoader and
 cc-ios. Built artifacts (`*.ccmod`, `dist/`) are git-ignored.
 

@@ -1,8 +1,0 @@
-{
-	"name": "cc-aim-assist",
-	"version": "0.1.0",
-	"prestart": "prestart.js",
-	"ccmodDependencies": {
-		"crosscode": "^1.1.0 || 1.0.2"
-	}
-}
