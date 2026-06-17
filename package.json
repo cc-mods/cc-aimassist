@@ -1,6 +1,6 @@
 {
 	"name": "cc-aimassist",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"ccmodHumanName": "CrossCode Aim Assist",
 	"description": "Gentle controller aim assist — tracks enemies without affecting bullet spread. Modes + tuning in Mod settings.",
 	"prestart": "prestart.js",
