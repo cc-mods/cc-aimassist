@@ -48,9 +48,7 @@ var C = A.CFG;
 ok("mode OFF=0", M.OFF === 0);
 ok("mode TRACK=1 (stable)", M.TRACK === 1);
 ok("six distinct modes", new Set([M.OFF, M.FRICTION, M.TRACK, M.HYBRID, M.STICKY, M.LOCK]).size === 6);
-ok("mode group label array has 6 entries", A.LANG["sc.gui.options.aim-assist-mode.group"].length === 6);
-ok("group indexed by value: 1=Track", A.LANG["sc.gui.options.aim-assist-mode.group"][M.TRACK] === "Track");
-ok("group indexed by value: 4=Sticky", A.LANG["sc.gui.options.aim-assist-mode.group"][M.STICKY] === "Sticky");
+// (The mode button labels now live in poststart.js and are checked in options.test.js.)
 
 // --- angleDelta: shortest signed arc, wraps across PI ---------------------------------
 ok("angleDelta zero", approx(A.angleDelta(1, 1), 0));

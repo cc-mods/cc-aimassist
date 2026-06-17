@@ -51,20 +51,52 @@
 (function () {
 	"use strict";
 
-	var OPT_MODE = "aim-assist-mode";
-	var OPT_STRENGTH = "aim-assist-strength";
-	var OPT_RANGE = "aim-assist-range";
-	var OPT_DELAY = "aim-assist-delay";
-	var OPT_DISTANCE = "aim-assist-distance";
-	var OPT_DEADZONE = "aim-assist-deadzone";
-	var OPT_LEAD = "aim-assist-lead";
+	// Mod id + the per-setting keys. Settings live on this mod's CCModManager "Mod settings" page
+	// (registered in poststart.js) — NOT the native game menus (suite convention: a mod's settings
+	// live on its CCModManager page; see cc-mods/cc-agent-tools › crosscode-modding.md). CCModManager
+	// persists each setting to localStorage under "<modId>-<key>" (e.g. "cc-aimassist-mode"), which we
+	// read live below. No CCModManager (e.g. desktop without it) → keys are absent → we use DEFAULTS,
+	// so the mod still works (no settings UI). The keys here MUST match poststart.js's option keys.
+	var MOD_ID = "cc-aimassist";
+	var K_MODE = "mode";
+	var K_STRENGTH = "strength";
+	var K_RANGE = "range";
+	var K_DELAY = "delay";
+	var K_DISTANCE = "distance";
+	var K_DEADZONE = "deadzone";
+	var K_LEAD = "lead";
 
-	// Behavior modes. The VALUE is what `sc.options.get` returns and what persists; the LABEL array
-	// (LANG ".group") is indexed by value. KEY-INSERTION order controls the on-screen button order
-	// (the engine does `for (k in data) push(data[k])`), so we can display subtle->strong while keeping
-	// TRACK === 1 stable across versions. NOTE: keep this to <= 6 entries — the button group splits the
-	// 256px control area evenly (floor(256/N)), so 7+ buttons clip their text.
+	// Behavior modes. The VALUE is what persists (CCModManager BUTTON_GROUP stores the enum value) and
+	// what the per-frame logic switches on; poststart.js's value-indexed `buttonNames` supplies labels.
+	// KEY-INSERTION order controls the on-screen button order (the button group does `for (k in data)`),
+	// so we display subtle->strong while keeping TRACK === 1 stable across versions. NOTE: keep this to
+	// <= 6 entries — the button group splits the control area evenly, so 7+ buttons clip their text.
 	var AIM_MODE = { OFF: 0, FRICTION: 2, TRACK: 1, HYBRID: 3, STICKY: 4, LOCK: 5 };
+
+	// Default for each setting, used until the user changes it (and whenever CCModManager isn't present
+	// to host/seed the settings). These reproduce the validated Track feel; poststart.js's `init` values
+	// MUST match these so the menu and the fallback agree.
+	var DEFAULTS = {
+		mode: AIM_MODE.TRACK, strength: 0.5, range: 0.4, delay: 0.5, distance: 0.5, deadzone: 0.4, lead: false
+	};
+
+	// Live setting reads from localStorage ("<modId>-<key>"), with a default when absent/invalid. Read
+	// per frame (like the old sc.options.get path) so menu changes apply immediately, no restart.
+	function lsGet(key) {
+		try { return window.localStorage ? window.localStorage.getItem(MOD_ID + "-" + key) : null; }
+		catch (e) { return null; }
+	}
+	function optNum(key, def) {
+		var v = lsGet(key);
+		if (v == null || v === "") return def;
+		var n = Number(v);
+		return isFinite(n) ? n : def;
+	}
+	function optBool(key, def) {
+		var v = lsGet(key);
+		return v == null ? def : v === "true";
+	}
+
 
 	// ---- Tuning ------------------------------------------------------------------------
 	// The menu exposes the knobs below; these constants set the range each 0..1 slider maps onto.
@@ -172,44 +204,8 @@
 		return null;
 	}
 
-	// ---- Localization for our Assists-menu entries ------------------------------------
-	// ig.lang.get(path) walks ig.lang.labels; we intercept only our keys and delegate the rest.
-	// The BUTTON_GROUP reads "...mode.group" as an ARRAY and indexes it by the AIM_MODE VALUE
-	// (0..5), so this array is in value order, not display order.
-	var LANG = {
-		"sc.gui.options.headers.aimAssist": "Aim Assist",
-		"sc.gui.options.aim-assist-mode.name": "Aim Assist",
-		"sc.gui.options.aim-assist-mode.description":
-			"Pick ONE way aiming with a controller helps you hit ENEMIES (only enemies, never objects). " +
-			"Friction slows your aim near an enemy. Track gently follows an enemy you're aiming at " +
-			"(engages after a brief moment, never snaps). Hybrid does both. Sticky glues your aim to the " +
-			"target so it follows their movement. Lock snaps onto the nearest enemy. Bullet spread is " +
-			"never affected.",
-		"sc.gui.options.aim-assist-mode.group": ["Off", "Track", "Friction", "Hybrid", "Sticky", "Lock"],
-		"sc.gui.options.aim-assist-strength.name": "Strength",
-		"sc.gui.options.aim-assist-strength.description":
-			"How hard Track/Hybrid pull, how much Friction slows, or how glued Sticky is. (Lock always " +
-			"snaps.) 0% = no help for the pull/slow/glue modes.",
-		"sc.gui.options.aim-assist-range.name": "Range",
-		"sc.gui.options.aim-assist-range.description":
-			"The engagement cone — how close to an enemy you must aim before any assist kicks in. " +
-			"Lower is tighter (only when you're nearly pointing at them); higher helps from a wider angle.",
-		"sc.gui.options.aim-assist-delay.name": "Engage Delay",
-		"sc.gui.options.aim-assist-delay.description":
-			"How long you must hold aim near an enemy before the assist engages. 0% = instant; higher " +
-			"makes it wait, so sweeping the stick past enemies won't grab them.",
-		"sc.gui.options.aim-assist-distance.name": "Max Distance",
-		"sc.gui.options.aim-assist-distance.description":
-			"How far away an enemy can be and still be assisted. Lower ignores distant enemies.",
-		"sc.gui.options.aim-assist-deadzone.name": "Deadzone",
-		"sc.gui.options.aim-assist-deadzone.description":
-			"When you're already this close to dead-on the enemy, Track/Hybrid back off so they don't " +
-			"fight your fine aiming. Higher = larger hands-off zone.",
-		"sc.gui.options.aim-assist-lead.name": "Lead Targets",
-		"sc.gui.options.aim-assist-lead.description":
-			"Aim where a moving enemy is heading instead of where they are now (helps Track, Hybrid, " +
-			"Sticky and Lock hit enemies that strafe). Off aims at their current position."
-	};
+	// (User-facing labels + descriptions for these settings now live in poststart.js, which registers
+	// them on the CCModManager "Mod settings" page. The per-frame logic below is label-agnostic.)
 
 	// ---- Live enemy targeting (scans ig.game.entities for alive enemy combatants) ------
 	// Pooled across frames to stay allocation-free: parallel arrays hold reusable {x,y} centers, the
@@ -246,19 +242,19 @@
 	}
 
 	function applyAssist(controller, crosshair) {
-		if (typeof sc === "undefined" || !sc.options) return;
-		var mode = sc.options.get(OPT_MODE);
+		if (typeof sc === "undefined") return;
+		var mode = optNum(K_MODE, DEFAULTS.mode);
 		if (!mode) return;                                   // Off (0)
 		if (!controller.gamepadMode) return;                 // analog-stick aiming only
 		if (!crosshair || !crosshair.active || !crosshair.coll) return; // only while actively aiming
 		if (!sc.COMBATANT_PARTY) return;
 
-		var strength = clamp01(sc.options.get(OPT_STRENGTH));
-		var coneRad = coneRadFor(sc.options.get(OPT_RANGE));
-		var rangePx = distPxFor(sc.options.get(OPT_DISTANCE));
-		var dwellFrames = dwellFramesFor(sc.options.get(OPT_DELAY));
-		var deadzoneRad = deadzoneRadFor(sc.options.get(OPT_DEADZONE));
-		var lead = !!sc.options.get(OPT_LEAD);
+		var strength = clamp01(optNum(K_STRENGTH, DEFAULTS.strength));
+		var coneRad = coneRadFor(optNum(K_RANGE, DEFAULTS.range));
+		var rangePx = distPxFor(optNum(K_DISTANCE, DEFAULTS.distance));
+		var dwellFrames = dwellFramesFor(optNum(K_DELAY, DEFAULTS.delay));
+		var deadzoneRad = deadzoneRadFor(optNum(K_DEADZONE, DEFAULTS.deadzone));
+		var lead = optBool(K_LEAD, DEFAULTS.lead);
 
 		var tp = crosshair._getThrowerPos(_scratch);
 		var tx = tp.x, ty = tp.y;
@@ -349,36 +345,10 @@
 		if (window.__ccAimAssistInit) { return; }
 		window.__ccAimAssistInit = true;
 
-		// 1) Register the options so they appear in the Assists menu. Added at prestart so the option
-		//    model picks up the `init` defaults (and persists them) when it initializes during boot.
-		//    Defaults reproduce the validated Track feel: cone ~14.4°, dwell ~160ms, 600px, deadzone 1.6°.
-		if (sc.OPTIONS_DEFINITION && sc.OPTION_CATEGORY) {
-			var A = sc.OPTION_CATEGORY.ASSISTS;
-			sc.OPTIONS_DEFINITION[OPT_MODE] = {
-				type: "BUTTON_GROUP", data: AIM_MODE, init: AIM_MODE.TRACK,
-				cat: A, hasDivider: true, header: "aimAssist"
-			};
-			sc.OPTIONS_DEFINITION[OPT_STRENGTH] = { type: "ARRAY_SLIDER", data: [0, 1], init: 0.5, cat: A, fill: true };
-			sc.OPTIONS_DEFINITION[OPT_RANGE] = { type: "ARRAY_SLIDER", data: [0, 1], init: 0.4, cat: A, fill: true };
-			sc.OPTIONS_DEFINITION[OPT_DELAY] = { type: "ARRAY_SLIDER", data: [0, 1], init: 0.5, cat: A, fill: true };
-			sc.OPTIONS_DEFINITION[OPT_DISTANCE] = { type: "ARRAY_SLIDER", data: [0, 1], init: 0.5, cat: A, fill: true };
-			sc.OPTIONS_DEFINITION[OPT_DEADZONE] = { type: "ARRAY_SLIDER", data: [0, 1], init: 0.4, cat: A, fill: true };
-			sc.OPTIONS_DEFINITION[OPT_LEAD] = { type: "CHECKBOX", init: false, cat: A };
-		} else {
-			console.warn("[cc-aimassist] OPTIONS_DEFINITION/OPTION_CATEGORY missing; menu entries skipped");
-		}
+		// Settings (mode + tuning knobs) are registered on the CCModManager "Mod settings" page by
+		// poststart.js and read live from localStorage above — nothing to register in the native menus.
 
-		// 2) Provide labels for our entries (delegate every other key to the game).
-		if (ig.Lang) {
-			ig.Lang.inject({
-				get: function (key) {
-					var v = LANG[key];
-					return v != null ? v : this.parent(key);
-				}
-			});
-		}
-
-		// 3) Hook the gamepad aim update.
+		// Hook the gamepad aim update.
 		if (sc.PlayerCrossHairController) {
 			sc.PlayerCrossHairController.inject({
 				updatePos: function (crosshair) {
@@ -393,9 +363,13 @@
 
 		// Debug / live-tuning / harness self-test surface. `applyAssist` is exported so the per-frame
 		// integration (mode dispatch, dwell, deadzone, lead, spread-neutralization) can be driven
-		// headlessly in Node with stubbed sc/ig — no WKWebView needed.
+		// headlessly in Node with stubbed sc/ig — no WKWebView needed. MOD_ID/keys/DEFAULTS are shared
+		// with poststart.js (the single source of truth for the settings contract).
 		window.ccAimAssist = {
-			CFG: CFG, LANG: LANG, AIM_MODE: AIM_MODE,
+			CFG: CFG, AIM_MODE: AIM_MODE, DEFAULTS: DEFAULTS,
+			MOD_ID: MOD_ID,
+			KEYS: { mode: K_MODE, strength: K_STRENGTH, range: K_RANGE, delay: K_DELAY, distance: K_DISTANCE, deadzone: K_DEADZONE, lead: K_LEAD },
+			optNum: optNum, optBool: optBool,
 			angleDelta: angleDelta, nudgeAngle: nudgeAngle, trackStep: trackStep, frictionStep: frictionStep,
 			stickyStep: stickyStep, leadAngle: leadAngle, selectTarget: selectTarget, applyAssist: applyAssist,
 			coneRadFor: coneRadFor, distPxFor: distPxFor, dwellFramesFor: dwellFramesFor,

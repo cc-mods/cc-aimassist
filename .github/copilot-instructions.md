@@ -19,7 +19,7 @@ source of truth for hard-won findings — start at its
 A pure-logic CCLoader mod (ships no assets) that hooks gamepad aiming in `prestart.js`: each frame it
 rotates the crosshair toward the nearest enemy within a cone **preserving aim distance**, and tells
 the spread system "nothing moved" so the snap never widens spread. Pure math is exported on
-`window.ccAimAssist` for testing. Settings live in the in-game **Assists** menu.
+`window.ccAimAssist` for testing. Settings live on the mod's **CCModManager → Mod settings** page.
 
 ## Must-not-break
 

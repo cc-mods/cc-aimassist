@@ -4,8 +4,9 @@
 	"ccmodHumanName": "CrossCode Aim Assist",
 	"description": "Controller aim assist — gently helps your throw aim track nearby enemies (Track / Friction / Lock modes), without affecting bullet spread. Works on desktop and the cc-ios iOS wrapper.",
 	"prestart": "prestart.js",
+	"poststart": "poststart.js",
 	"scripts": {
-		"test": "node test/aim-math.test.js && node test/aim-sim.test.js"
+		"test": "node test/aim-math.test.js && node test/aim-sim.test.js && node test/options.test.js"
 	},
 	"ccmodDependencies": {
 		"crosscode": "^1.1.0 || 1.0.2"

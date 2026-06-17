@@ -19,17 +19,21 @@ var vm = require("vm");
 
 var src = fs.readFileSync(path.join(__dirname, "..", "prestart.js"), "utf8");
 
-// Mutable stubs the test drives per scenario.
-var OPTS = {};
+// Mutable stubs the test drives per scenario. Settings are now read from localStorage
+// ("cc-aimassist-<key>") by prestart, so back the sandbox with a fake localStorage and drive values
+// through it (mirroring how CCModManager persists them).
+var LS = {};
+var fakeLocalStorage = {
+	getItem: function (k) { return Object.prototype.hasOwnProperty.call(LS, k) ? LS[k] : null; },
+	setItem: function (k, v) { LS[k] = String(v); },
+	removeItem: function (k) { delete LS[k]; }
+};
 var sandbox = {
 	console: { log: function () {}, warn: function () {}, error: function () {} },
 	Math: Math,
-	window: {},
+	window: { localStorage: fakeLocalStorage },
 	ig: { Lang: { inject: function () {} }, game: { entities: [] } },
 	sc: {
-		options: { get: function (k) { return OPTS[k]; } },
-		OPTIONS_DEFINITION: {},
-		OPTION_CATEGORY: { ASSISTS: 6 },
 		COMBATANT_PARTY: { PLAYER: 1, ENEMY: 2, OTHER: 3 },
 		PlayerCrossHairController: { inject: function () {} }
 	}
@@ -44,30 +48,23 @@ var M = A.AIM_MODE;
 var pass = 0, fail = 0;
 function ok(name, cond) { if (cond) { pass++; } else { fail++; console.error("  FAIL: " + name); } }
 
-// --- option registration (headless) --------------------------------------------------
+// --- prestart no longer registers native menu options (settings moved to CCModManager) ----------
 (function () {
-	var D = sandbox.sc.OPTIONS_DEFINITION;
-	ok("registers all 7 options", ["mode", "strength", "range", "delay", "distance", "deadzone", "lead"]
-		.every(function (s) { return D["aim-assist-" + s] != null; }));
-	ok("mode is BUTTON_GROUP, default Track", D["aim-assist-mode"].type === "BUTTON_GROUP" && D["aim-assist-mode"].init === M.TRACK);
-	ok("mode data is AIM_MODE", D["aim-assist-mode"].data === M);
-	ok("sliders are ARRAY_SLIDER [0,1]", ["strength", "range", "delay", "distance", "deadzone"]
-		.every(function (s) { var o = D["aim-assist-" + s]; return o.type === "ARRAY_SLIDER" && o.data[0] === 0 && o.data[1] === 1; }));
-	ok("lead is CHECKBOX init false", D["aim-assist-lead"].type === "CHECKBOX" && D["aim-assist-lead"].init === false);
-	ok("all options in ASSISTS category", ["mode", "strength", "range", "delay", "distance", "deadzone", "lead"]
-		.every(function (s) { return D["aim-assist-" + s].cat === sandbox.sc.OPTION_CATEGORY.ASSISTS; }));
+	ok("prestart does not touch native sc.OPTIONS_DEFINITION", sandbox.sc.OPTIONS_DEFINITION === undefined);
+	ok("exposes the settings contract (MOD_ID/KEYS/DEFAULTS)",
+		A.MOD_ID === "cc-aimassist" && A.KEYS && A.KEYS.mode === "mode" && A.DEFAULTS && A.DEFAULTS.mode === M.TRACK);
 })();
 
 // --- harness helpers -----------------------------------------------------------------
 function setOpts(mode, o) {
 	o = o || {};
-	OPTS["aim-assist-mode"] = mode;
-	OPTS["aim-assist-strength"] = o.strength != null ? o.strength : 1;
-	OPTS["aim-assist-range"] = o.range != null ? o.range : 1;       // wide cone unless overridden
-	OPTS["aim-assist-delay"] = o.delay != null ? o.delay : 0;       // instant unless overridden
-	OPTS["aim-assist-distance"] = o.distance != null ? o.distance : 0.5;
-	OPTS["aim-assist-deadzone"] = o.deadzone != null ? o.deadzone : 0;
-	OPTS["aim-assist-lead"] = !!o.lead;
+	LS["cc-aimassist-mode"] = String(mode);
+	LS["cc-aimassist-strength"] = String(o.strength != null ? o.strength : 1);
+	LS["cc-aimassist-range"] = String(o.range != null ? o.range : 1);       // wide cone unless overridden
+	LS["cc-aimassist-delay"] = String(o.delay != null ? o.delay : 0);       // instant unless overridden
+	LS["cc-aimassist-distance"] = String(o.distance != null ? o.distance : 0.5);
+	LS["cc-aimassist-deadzone"] = String(o.deadzone != null ? o.deadzone : 0);
+	LS["cc-aimassist-lead"] = (!!o.lead).toString();
 }
 function enemy(angle, d, vx, vy, combat, party) {
 	d = d || 200;

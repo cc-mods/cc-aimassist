@@ -100,7 +100,7 @@ jobs:
           set -euo pipefail
           STAGE="$(mktemp -d)"
           # Ship only the runtime + docs. Exclude dev-only files (tools/, .github/, HANDOFF.md, …).
-          cp ccmod.json package.json prestart.js icon.png README.md LICENSE "$STAGE/"
+          cp ccmod.json package.json prestart.js poststart.js icon.png README.md LICENSE "$STAGE/"
           ASSET="cc-aimassist-${NEW_VERSION}.ccmod"
           ( cd "$STAGE" && zip -r "${GITHUB_WORKSPACE}/${ASSET}" . )
           ls -la "${GITHUB_WORKSPACE}/${ASSET}"

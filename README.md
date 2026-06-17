@@ -14,9 +14,10 @@ toward playability on a tiny controller — assistance, not take-over — and it
 game's bullet-spread mechanic untouched: your shots still tighten to a line exactly as before, that line
 is just better aimed.
 
-## Settings (in-game Assists menu)
+## Settings (CCModManager → Mod settings)
 
-Open **Options → Assists**. The mod adds an **Aim Assist** section:
+Open the in-game **Mods** list, focus **CrossCode Aim Assist**, and press **Mod settings**
+(right-click / controller **R2**). All settings live here — not the native game menus:
 
 | Setting | What it does |
 |---|---|
@@ -28,10 +29,11 @@ Open **Options → Assists**. The mod adds an **Aim Assist** section:
 | **Deadzone** | When you're already nearly dead-on, *Track*/*Hybrid* back off so they don't fight your fine aiming. |
 | **Lead Targets** | Aim where a moving enemy is **heading** rather than where they are now (helps *Track*, *Hybrid*, *Sticky* and *Lock* hit enemies that strafe). |
 
-Only **one** mode is active at a time (it's a single-select). Everything is tunable live in the menu so
-you can dial in the feel on any device — no rebuild needed. Settings persist with your other options.
-Defaults: **Track**, Strength 50%, Range 40% (~14°), Engage Delay 50% (~160 ms), Max Distance 50%
-(600 px), Deadzone 40% (~1.6°), Lead off.
+Only **one** mode is active at a time (it's a single-select). Everything is tunable live in the page so
+you can dial in the feel on any device — no rebuild needed. Changes apply immediately (the mod reads
+them every frame). Defaults: **Track**, Strength 50%, Range 40% (~14°), Engage Delay 50% (~160 ms),
+Max Distance 50% (600 px), Deadzone 40% (~1.6°), Lead off. Without CCModManager the assist still runs
+on these defaults (there's just no settings page).
 
 ## How it works
 
@@ -87,9 +89,10 @@ tools/setup-ccloader.sh --add-mod /path/to/cc-aimassist
 
 ```
 cc-aimassist/
-  ccmod.json               CCLoader manifest (prestart stage, no assets)
+  ccmod.json               CCLoader manifest (prestart + poststart stages, no assets)
   package.json             legacy CCLoader manifest mirror
-  prestart.js              the hook (Friction/Track/Hybrid/Sticky/Lock aim assist + Assists-menu options)
+  prestart.js              the hook (Friction/Track/Hybrid/Sticky/Lock aim assist); reads settings live
+  poststart.js             registers the settings on the CCModManager "Mod settings" page
   icon.png                 24x24 mod icon (original art)
   README.md
   HANDOFF.md               engine internals this mod hooks + dev/test notes
