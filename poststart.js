@@ -68,37 +68,28 @@
 								buttonNames: MODE_NAMES,
 								init: D.mode,
 								name: "Aim Assist",
-								description:
-									"Pick ONE way aiming with a controller helps you hit ENEMIES (only enemies, never " +
-									"objects). Friction slows your aim near an enemy. Track gently follows an enemy you're " +
-									"aiming at (engages after a brief moment, never snaps). Hybrid does both. Sticky glues " +
-									"your aim to the target so it follows their movement. Lock snaps onto the nearest enemy. " +
-									"Bullet spread is never affected."
+								// In-game these show on the single-line menu info bar (no wrap) — keep them
+								// short. Full detail lives in the README.
+								description: "How the game helps your controller aim."
 							}
 						},
 						tuning: {
 							strength: slider(D.strength, "Strength",
-								"How hard Track/Hybrid pull, how much Friction slows, or how glued Sticky is. (Lock always " +
-								"snaps.) 0% = no help for the pull/slow/glue modes."),
+								"How strong the assist is. 0% = off."),
 							range: slider(D.range, "Range",
-								"The engagement cone — how close to an enemy you must aim before any assist kicks in. " +
-								"Lower is tighter (only when you're nearly pointing at them); higher helps from a wider angle."),
+								"Aim cone width. Lower = must aim closer."),
 							delay: slider(D.delay, "Engage Delay",
-								"How long you must hold aim near an enemy before the assist engages. 0% = instant; higher " +
-								"makes it wait, so sweeping the stick past enemies won't grab them."),
+								"Hold time before it engages. 0% = instant."),
 							distance: slider(D.distance, "Max Distance",
-								"How far away an enemy can be and still be assisted. Lower ignores distant enemies."),
+								"Max enemy distance to assist."),
 							deadzone: slider(D.deadzone, "Deadzone",
-								"When you're already this close to dead-on the enemy, Track/Hybrid back off so they don't " +
-								"fight your fine aiming. Higher = larger hands-off zone.")
+								"Hands-off zone when nearly on target.")
 						},
 						targeting: {
 							lead: {
 								type: "CHECKBOX", init: D.lead,
 								name: "Lead Targets",
-								description:
-									"Aim where a moving enemy is heading instead of where they are now (helps Track, Hybrid, " +
-									"Sticky and Lock hit enemies that strafe). Off aims at their current position."
+								description: "Aim ahead of moving enemies."
 							}
 						}
 					}

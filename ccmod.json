@@ -2,7 +2,7 @@
 	"id": "cc-aimassist",
 	"version": "0.1.4",
 	"title": "CrossCode Aim Assist",
-	"description": "Controller aim assist for CrossCode — gently helps your throw aim track nearby ENEMIES (only enemies), never affecting bullet spread. Pick a mode (Track / Friction / Lock) and strength in CCModManager → Mod settings. Works on desktop and the cc-ios iOS wrapper.",
+	"description": "Gentle controller aim assist — tracks enemies without affecting bullet spread. Modes + tuning in Mod settings.",
 	"repository": "https://github.com/cc-mods/cc-aimassist",
 	"homepage": "https://github.com/cc-mods/cc-aimassist",
 	"authors": [
