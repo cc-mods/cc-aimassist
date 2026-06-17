@@ -207,7 +207,7 @@ Notes:
 
 ## Packaging
 
-`tools/build-ccmod.sh` stages the root mod files into `dist/<id>-<version>.ccmod` (manifest at the
+`cc-agent-tools/scripts/macos/build-ccmod.sh` stages the root mod files into `dist/<id>-<version>.ccmod` (manifest at the
 archive root; `prestart.js` syntax-checked first). The same `.ccmod` installs on desktop CCLoader and
 cc-ios. Built artifacts (`*.ccmod`, `dist/`) are git-ignored.
 

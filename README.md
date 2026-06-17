@@ -67,7 +67,8 @@ nothing to 404 — the safest kind of mod for the browser-mode loader cc-ios use
 
 1. Install **[CCLoader 2.x](https://github.com/CCDirectLink/CCLoader)** if you haven't.
 2. Grab the `.ccmod` from [Releases](https://github.com/cc-mods/cc-aimassist/releases) (or build it
-   locally with `tools/build-ccmod.sh`, which writes `dist/cc-aimassist-<version>.ccmod`).
+   locally with the suite tool `cc-agent-tools/scripts/macos/build-ccmod.sh cc-aimassist`, which
+   writes `dist/cc-aimassist-<version>.ccmod`).
    Copy that `.ccmod` into `CrossCode/assets/mods/` (CCLoader unpacks it), or install it from the
    in-game **CCModManager**. You can also just copy this repo's mod files into
    `CrossCode/assets/mods/cc-aimassist/`.
@@ -99,7 +100,7 @@ cc-aimassist/
   LICENSE                  MIT (this mod's own code only)
   test/aim-math.test.js    Node unit tests — pure aiming math + slider mappings (no game, no deps)
   test/aim-sim.test.js     Node integration test — drives applyAssist per-frame for every mode (headless)
-  tools/build-ccmod.sh     package the mod into a distributable .ccmod
+  test/options.test.js     Node tests — CCModManager settings registration + live localStorage reads
   .github/workflows/release.yml   auto-release on push to main
 ```
 

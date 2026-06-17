@@ -34,7 +34,7 @@ the spread system "nothing moved" so the snap never widens spread. Pure math is 
 Push to `main` auto-bumps the patch, tags, builds `cc-aimassist-<ver>.ccmod`, publishes a Release.
 **The release bot pushes the bump commit back — `git pull --rebase origin main` before your next
 push.** Docs-only paths (`**.md`, `.github/**`, `LICENSE`) are excluded. After a release, rebuild
-`cc-mods/CCModDB`. `tools/build-ccmod.sh` builds locally.
+`cc-mods/CCModDB`. Build a local `.ccmod` with `cc-agent-tools/scripts/macos/build-ccmod.sh cc-aimassist`.
 
 ## Verify
 
